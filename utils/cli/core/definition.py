@@ -113,6 +113,27 @@ task_create_parser.add_argument(
     help='bug tracker URL'
 )
 task_create_parser.add_argument(
+    '--url',
+    dest='git_url',
+    default='',
+    type=str,
+    help='git repository URL'
+)
+task_create_parser.add_argument(
+    '--no-z-order',
+    dest='z_order',
+    default=True,
+    action='store_false',
+    help='disable z-order'
+)
+task_create_parser.add_argument(
+    '--img-quality',
+    dest='img_quality',
+    default=100,
+    type=int,
+    help='image quality percentage'
+)
+task_create_parser.add_argument(
     'resource_type',
     default='local',
     choices=list(ResourceType),

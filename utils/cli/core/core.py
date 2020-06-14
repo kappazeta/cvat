@@ -22,7 +22,7 @@ class CLI():
         self.session = session
         self.login(credentials)
 
-    def tasks_data(self, task_id, resource_type, resources):
+    def tasks_data(self, task_id, resource_type, resources, image_quality=50):
         """ Add local, remote, or shared files to an existing task. """
         url = self.api.tasks_id_data(task_id)
         data = {}
@@ -33,7 +33,7 @@ class CLI():
             data = {'remote_files[{}]'.format(i): f for i, f in enumerate(resources)}
         elif resource_type == ResourceType.SHARE:
             data = {'server_files[{}]'.format(i): f for i, f in enumerate(resources)}
-        data['image_quality'] = 50
+        data['image_quality'] = image_quality
         response = self.session.post(url, data=data, files=files)
         response.raise_for_status()
 
@@ -57,19 +57,23 @@ class CLI():
             response = self.session.get(url)
             response.raise_for_status()
 
-    def tasks_create(self, name, labels, bug, resource_type, resources, **kwargs):
+    def tasks_create(self, name, labels, bug, git_url, z_order, img_quality, resource_type, resources, **kwargs):
         """ Create a new task with the given name and labels JSON and
         add the files to it. """
         url = self.api.tasks
         data = {'name': name,
                 'labels': labels,
                 'bug_tracker': bug,
+                'z_order': z_order
         }
         response = self.session.post(url, json=data)
         response.raise_for_status()
         response_json = response.json()
         log.info('Created task ID: {id} NAME: {name}'.format(**response_json))
-        self.tasks_data(response_json['id'], resource_type, resources)
+        self.tasks_data(response_json['id'], resource_type, resources, image_quality=img_quality)
+        if git_url:
+            git_response_json = self.git_create_repository(response_json['id'], git_url)
+            log.info('Created git job: {rq_id}'.format(**git_response_json))
 
     def tasks_delete(self, task_ids, **kwargs):
         """ Delete a list of tasks, ignoring those which don't exist. """
@@ -145,6 +149,14 @@ class CLI():
             "with annotation file {} finished".format(filename)
         log.info(logger_string)
 
+    def git_create_repository(self, task_id, git_url, lfs=False):
+        """ Create a working copy of the repository for the task. """
+        url = self.api.git_create_repository(task_id)
+        data = {'path': git_url, 'lfs': lfs, 'tid': task_id}
+        response = self.session.post(url, json=data)
+        response.raise_for_status()
+        return response.json()
+
     def login(self, credentials):
         url = self.api.login
         auth = {'username': credentials[0], 'password': credentials[1]}
@@ -159,6 +171,7 @@ class CVAT_API_V1():
 
     def __init__(self, host):
         self.base = 'http://{}/api/v1/'.format(host)
+        self.base_git = 'http://{}/git/repository'.format(host)
 
     @property
     def tasks(self):
@@ -183,6 +196,12 @@ class CVAT_API_V1():
     def tasks_id_annotations_filename(self, task_id, name, fileformat):
         return self.tasks_id(task_id) + '/annotations?format={}&filename={}' \
             .format(fileformat, name)
+
+    def git_create_repository(self, task_id):
+        return self.base_git + "/create/{}".format(task_id)
+
+    def git_check_repository_creation(self, task_id):
+        return self.base_git + "/check/git.create.{}".format(task_id)
 
     @property
     def login(self):
