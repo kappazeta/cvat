@@ -40,7 +40,6 @@ RUN apt-get update && \
         libavfilter-dev \
         libavformat-dev \
         libavutil-dev \
-        libldap2-dev \
         libswresample-dev \
         libswscale-dev \
         libldap2-dev \
@@ -56,7 +55,7 @@ RUN apt-get update && \
         curl && \
     curl https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
     apt-get --no-install-recommends install -y git-lfs && git lfs install && \
-    python3 -m pip install --no-cache-dir -U pip==20.0.1 setuptools && \
+    python3 -m pip install --no-cache-dir -U pip==20.0.1 setuptools>=49.1.0 && \
     ln -fs /usr/share/zoneinfo/${TZ} /etc/localtime && \
     dpkg-reconfigure -f noninteractive tzdata && \
     add-apt-repository --remove ppa:mc3man/gstffmpeg-keep -y && \
@@ -127,6 +126,19 @@ RUN if [ "$WITH_DEXTR" = "yes" ]; then \
         mkdir ${DEXTR_MODEL_DIR} -p && \
         curl https://download.01.org/openvinotoolkit/models_contrib/cvat/dextr_model_v1.zip -o ${DEXTR_MODEL_DIR}/dextr.zip && \
         7z e ${DEXTR_MODEL_DIR}/dextr.zip -o${DEXTR_MODEL_DIR} && rm ${DEXTR_MODEL_DIR}/dextr.zip; \
+    fi
+
+ARG CLAM_AV
+ENV CLAM_AV=${CLAM_AV}
+RUN if [ "$CLAM_AV" = "yes" ]; then \
+        apt-get update && \
+        apt-get --no-install-recommends install -yq \
+            clamav \
+            libclamunrar9 && \
+        sed -i 's/ReceiveTimeout 30/ReceiveTimeout 300/g' /etc/clamav/freshclam.conf && \
+        freshclam && \
+        chown -R ${USER}:${USER} /var/lib/clamav && \
+        rm -rf /var/lib/apt/lists/*; \
     fi
 
 COPY ssh ${HOME}/.ssh

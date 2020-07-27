@@ -105,6 +105,20 @@
     });
 
     /**
+        * Annotation type
+        * @enum {string}
+        * @name source
+        * @memberof module:API.cvat.enums
+        * @property {string} MANUAL 'manual'
+        * @property {string} AUTO 'auto'
+        * @readonly
+    */
+   const source = Object.freeze({
+    MANUAL:'manual',
+    AUTO:'auto',
+});
+
+    /**
         * Logger event types
         * @enum {string}
         * @name LogType
@@ -190,6 +204,7 @@
         * @property {string} CHANGED_LOCK Changed lock
         * @property {string} CHANGED_COLOR Changed color
         * @property {string} CHANGED_HIDDEN Changed hidden
+        * @property {string} CHANGED_SOURCE Changed source
         * @property {string} MERGED_OBJECTS Merged objects
         * @property {string} SPLITTED_TRACK Splitted track
         * @property {string} GROUPED_OBJECTS Grouped objects
@@ -209,6 +224,7 @@
         CHANGED_PINNED: 'Changed pinned',
         CHANGED_COLOR: 'Changed color',
         CHANGED_HIDDEN: 'Changed hidden',
+        CHANGED_SOURCE: 'Changed source',
         MERGED_OBJECTS: 'Merged objects',
         SPLITTED_TRACK: 'Splitted track',
         GROUPED_OBJECTS: 'Grouped objects',
@@ -224,10 +240,11 @@
         * @readonly
     */
     const colors = [
-        '#FF355E', '#E936A7', '#FD5B78', '#FF007C', '#FF00CC', '#66FF66',
-        '#50BFE6', '#CCFF00', '#FFFF66', '#FF9966', '#FF6037', '#FFCC33',
-        '#AAF0D1', '#FF3855', '#FFF700', '#A7F432', '#FF5470', '#FAFA37',
-        '#FF7A00', '#FF9933', '#AFE313', '#00CC99', '#FF5050', '#733380',
+        '#33ddff', '#fa3253', '#34d1b7', '#ff007c', '#ff6037', '#ddff33',
+        '#24b353', '#b83df5', '#66ff66', '#32b7fa', '#ffcc33', '#83e070',
+        '#fafa37', '#5986b3', '#8c78f0', '#ff6a4d', '#f078f0', '#2a7dd1',
+        '#b25050', '#cc3366', '#cc9933', '#aaf0d1', '#ff00cc', '#3df53d',
+        '#fa32b7', '#fa7dbb', '#ff355e', '#f59331', '#3d3df5', '#733380',
     ];
 
     module.exports = {
@@ -240,5 +257,6 @@
         LogType,
         HistoryActions,
         colors,
+        source,
     };
 })();

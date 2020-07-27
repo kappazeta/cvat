@@ -70,7 +70,16 @@ from django.contrib.auth.models import User, Group
 from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
 
+from cvat.apps.dataset_manager.annotation import AnnotationIR
+from cvat.apps.dataset_manager.bindings import TaskData, find_dataset_root
+from cvat.apps.engine.models import Task
+
 _setUpModule()
+
+from cvat.apps.dataset_manager.annotation import AnnotationIR
+from cvat.apps.dataset_manager.bindings import TaskData, CvatTaskDataExtractor
+from cvat.apps.dataset_manager.task import TaskAnnotation
+from cvat.apps.engine.models import Task
 
 
 def generate_image_file(filename, size=(100, 50)):
@@ -154,6 +163,7 @@ class TaskExportTest(_DbTestBase):
                     "frame": 0,
                     "label_id": task["labels"][0]["id"],
                     "group": None,
+                    "source": "manual",
                     "attributes": [
                         {
                             "spec_id": task["labels"][0]["attributes"][0]["id"],
@@ -172,6 +182,7 @@ class TaskExportTest(_DbTestBase):
                     "frame": 1,
                     "label_id": task["labels"][1]["id"],
                     "group": None,
+                    "source": "manual",
                     "attributes": [],
                     "points": [2.0, 2.1, 100, 300.222, 400, 500, 1, 3],
                     "type": "polygon",
@@ -181,6 +192,7 @@ class TaskExportTest(_DbTestBase):
                     "frame": 1,
                     "label_id": task["labels"][0]["id"],
                     "group": 1,
+                    "source": "manual",
                     "attributes": [],
                     "points": [100, 300.222, 400, 500, 1, 3],
                     "type": "points",
@@ -190,6 +202,7 @@ class TaskExportTest(_DbTestBase):
                     "frame": 1,
                     "label_id": task["labels"][0]["id"],
                     "group": 1,
+                    "source": "manual",
                     "attributes": [],
                     "points": [2.0, 2.1, 400, 500, 1, 3],
                     "type": "polyline",
@@ -201,6 +214,7 @@ class TaskExportTest(_DbTestBase):
                     "frame": 0,
                     "label_id": task["labels"][0]["id"],
                     "group": None,
+                    "source": "manual",
                     "attributes": [
                         {
                             "spec_id": task["labels"][0]["attributes"][0]["id"],
@@ -235,6 +249,7 @@ class TaskExportTest(_DbTestBase):
                     "frame": 1,
                     "label_id": task["labels"][1]["id"],
                     "group": None,
+                    "source": "manual",
                     "attributes": [],
                     "shapes": [
                         {
@@ -252,7 +267,7 @@ class TaskExportTest(_DbTestBase):
         self._put_api_v1_task_id_annotations(task["id"], annotations)
         return annotations
 
-    def _generate_task_images(self, count):
+    def _generate_task_images(self, count): # pylint: disable=no-self-use
         images = {
             "client_files[%d]" % i: generate_image_file("image_%d.jpg" % i)
             for i in range(count)
@@ -381,6 +396,7 @@ class TaskExportTest(_DbTestBase):
 
                             # NOTE: can't import cvat.utils.cli
                             # for whatever reason, so remove the dependency
+                            #
                             project.config.remove('sources')
 
                             return project.make_dataset()
@@ -397,3 +413,148 @@ class TaskExportTest(_DbTestBase):
                     self.assertEqual(len(dataset), task["size"])
                 self._test_export(check, task, format_name, save_images=False)
 
+    def test_can_skip_outside(self):
+        images = self._generate_task_images(3)
+        task = self._generate_task(images)
+        self._generate_annotations(task)
+        task_ann = TaskAnnotation(task["id"])
+        task_ann.init_from_db()
+        task_data = TaskData(task_ann.ir_data, Task.objects.get(pk=task["id"]))
+
+        extractor = CvatTaskDataExtractor(task_data, include_outside=False)
+        dm_dataset = datumaro.components.project.Dataset.from_extractors(extractor)
+        self.assertEqual(4, len(dm_dataset.get("image_1").annotations))
+
+        extractor = CvatTaskDataExtractor(task_data, include_outside=True)
+        dm_dataset = datumaro.components.project.Dataset.from_extractors(extractor)
+        self.assertEqual(5, len(dm_dataset.get("image_1").annotations))
+
+    def test_cant_make_rel_frame_id_from_unknown(self):
+        images = self._generate_task_images(3)
+        images['frame_filter'] = 'step=2'
+        task = self._generate_task(images)
+        task_data = TaskData(AnnotationIR(), Task.objects.get(pk=task['id']))
+
+        with self.assertRaisesRegex(ValueError, r'Unknown'):
+            task_data.rel_frame_id(1) # the task has only 0 and 2 frames
+
+    def test_can_make_rel_frame_id_from_known(self):
+        images = self._generate_task_images(6)
+        images['frame_filter'] = 'step=2'
+        images['start_frame'] = 1
+        task = self._generate_task(images)
+        task_data = TaskData(AnnotationIR(), Task.objects.get(pk=task['id']))
+
+        self.assertEqual(2, task_data.rel_frame_id(5))
+
+    def test_cant_make_abs_frame_id_from_unknown(self):
+        images = self._generate_task_images(3)
+        images['frame_filter'] = 'step=2'
+        task = self._generate_task(images)
+        task_data = TaskData(AnnotationIR(), Task.objects.get(pk=task['id']))
+
+        with self.assertRaisesRegex(ValueError, r'Unknown'):
+            task_data.abs_frame_id(2) # the task has only 0 and 1 indices
+
+    def test_can_make_abs_frame_id_from_known(self):
+        images = self._generate_task_images(6)
+        images['frame_filter'] = 'step=2'
+        images['start_frame'] = 1
+        task = self._generate_task(images)
+        task_data = TaskData(AnnotationIR(), Task.objects.get(pk=task['id']))
+
+        self.assertEqual(5, task_data.abs_frame_id(2))
+
+class FrameMatchingTest(_DbTestBase):
+    def _generate_task_images(self, paths): # pylint: disable=no-self-use
+        f = BytesIO()
+        with zipfile.ZipFile(f, 'w') as archive:
+            for path in paths:
+                archive.writestr(path, generate_image_file(path).getvalue())
+        f.name = 'images.zip'
+        f.seek(0)
+
+        return {
+            'client_files[0]': f,
+            'image_quality': 75,
+        }
+
+    def _generate_task(self, images):
+        task = {
+            "name": "my task #1",
+            "owner": '',
+            "assignee": '',
+            "overlap": 0,
+            "segment_size": 100,
+            "z_order": False,
+            "labels": [
+                {
+                    "name": "car",
+                    "attributes": [
+                        {
+                            "name": "model",
+                            "mutable": False,
+                            "input_type": "select",
+                            "default_value": "mazda",
+                            "values": ["bmw", "mazda", "renault"]
+                        },
+                        {
+                            "name": "parked",
+                            "mutable": True,
+                            "input_type": "checkbox",
+                            "default_value": False
+                        },
+                    ]
+                },
+                {"name": "person"},
+            ]
+        }
+        return self._create_task(task, images)
+
+    def test_frame_matching(self):
+        task_paths = [
+            'a.jpg',
+            'a/a.jpg',
+            'a/b.jpg',
+            'b/a.jpg',
+            'b/c.jpg',
+            'a/b/c.jpg',
+            'a/b/d.jpg',
+        ]
+
+        images = self._generate_task_images(task_paths)
+        task = self._generate_task(images)
+        task_data = TaskData(AnnotationIR(), Task.objects.get(pk=task["id"]))
+
+        for input_path, expected, root in [
+            ('z.jpg', None, ''), # unknown item
+            ('z/a.jpg', None, ''), # unknown item
+
+            ('d.jpg', 'a/b/d.jpg', 'a/b'), # match with root hint
+            ('b/d.jpg', 'a/b/d.jpg', 'a'), # match with root hint
+        ] + list(zip(task_paths, task_paths, [None] * len(task_paths))): # exact matches
+            with self.subTest(input=input_path):
+                actual = task_data.match_frame(input_path, root)
+                if actual is not None:
+                    actual = task_data.frame_info[actual]['path']
+                self.assertEqual(expected, actual)
+
+    def test_dataset_root(self):
+        for task_paths, dataset_paths, expected in [
+            ([ 'a.jpg', 'b/c/a.jpg' ], [ 'a.jpg', 'b/c/a.jpg' ], ''),
+            ([ 'b/a.jpg', 'b/c/a.jpg' ], [ 'a.jpg', 'c/a.jpg' ], 'b'), # 'images from share' case
+            ([ 'b/c/a.jpg' ], [ 'a.jpg' ], 'b/c'), # 'images from share' case
+            ([ 'a.jpg' ], [ 'z.jpg' ], None),
+        ]:
+            with self.subTest(expected=expected):
+                images = self._generate_task_images(task_paths)
+                task = self._generate_task(images)
+                task_data = TaskData(AnnotationIR(),
+                    Task.objects.get(pk=task["id"]))
+                dataset = [
+                    datumaro.components.extractor.DatasetItem(
+                        id=osp.splitext(p)[0])
+                    for p in dataset_paths]
+
+                root = find_dataset_root(dataset, task_data)
+                self.assertEqual(expected, root)

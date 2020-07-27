@@ -108,8 +108,8 @@ class _VocXmlExtractor(_VocExtractor):
 
         for item_id in self._items:
             log.debug("Reading item '%s'" % item_id)
-            image = osp.join(self._dataset_dir, VocPath.IMAGES_DIR,
-                item_id + VocPath.IMAGE_EXT)
+            image = item_id + VocPath.IMAGE_EXT
+            height, width = 0, 0
 
             anns = []
             ann_file = osp.join(anno_dir, item_id + '.xml')
@@ -121,10 +121,14 @@ class _VocXmlExtractor(_VocExtractor):
                 width = root_elem.find('size/width')
                 if width is not None:
                     width = int(width.text)
-                if height and width:
-                    image = Image(path=image, size=(height, width))
-
+                filename_elem = root_elem.find('filename')
+                if filename_elem is not None:
+                    image = filename_elem.text
                 anns = self._parse_annotations(root_elem)
+
+            image = osp.join(self._dataset_dir, VocPath.IMAGES_DIR, image)
+            if height and width:
+                image = Image(path=image, size=(height, width))
 
             yield DatasetItem(id=item_id, subset=self._subset,
                 image=image, annotations=anns)
@@ -193,6 +197,12 @@ class _VocXmlExtractor(_VocExtractor):
                 has_parts = True
                 item_annotations.append(Bbox(*part_bbox, label=part_label_id,
                     group=group))
+
+            attributes_elem = object_elem.find('attributes')
+            if attributes_elem is not None:
+                for attr_elem in attributes_elem.iter('attribute'):
+                    attributes[attr_elem.find('name').text] = \
+                        attr_elem.find('value').text
 
             if self._task is VocTask.person_layout and not has_parts:
                 continue
