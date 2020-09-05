@@ -154,7 +154,11 @@ REST_FRAMEWORK = {
 }
 
 REST_AUTH_REGISTER_SERIALIZERS = {
-    'REGISTER_SERIALIZER': 'cvat.apps.restrictions.serializers.RestrictedRegisterSerializer'
+    'REGISTER_SERIALIZER': 'cvat.apps.restrictions.serializers.RestrictedRegisterSerializer',
+}
+
+REST_AUTH_SERIALIZERS = {
+    'PASSWORD_RESET_SERIALIZER': 'cvat.apps.authentication.serializers.PasswordResetSerializerEx',
 }
 
 if os.getenv('DJANGO_LOG_VIEWER_HOST'):
@@ -207,15 +211,17 @@ DJANGO_AUTH_TYPE = 'BASIC'
 DJANGO_AUTH_DEFAULT_GROUPS = []
 LOGIN_URL = 'rest_login'
 LOGIN_REDIRECT_URL = '/'
-AUTH_LOGIN_NOTE = '<p>Have not registered yet? <a href="/auth/register">Register here</a>.</p>'
 
 AUTHENTICATION_BACKENDS = [
     'rules.permissions.ObjectPermissionBackend',
-    'django.contrib.auth.backends.ModelBackend'
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
 # https://github.com/pennersr/django-allauth
 ACCOUNT_EMAIL_VERIFICATION = 'none'
+# set UI url to redirect after a successful e-mail confirmation
+ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = '/auth/login'
 OLD_PASSWORD_FIELD_ENABLED = True
 
 # Django-RQ
@@ -322,6 +328,9 @@ os.makedirs(DATA_ROOT, exist_ok=True)
 MEDIA_DATA_ROOT = os.path.join(DATA_ROOT, 'data')
 os.makedirs(MEDIA_DATA_ROOT, exist_ok=True)
 
+CACHE_ROOT = os.path.join(DATA_ROOT, 'cache')
+os.makedirs(CACHE_ROOT, exist_ok=True)
+
 TASKS_ROOT = os.path.join(DATA_ROOT, 'tasks')
 os.makedirs(TASKS_ROOT, exist_ok=True)
 
@@ -420,3 +429,17 @@ RESTRICTIONS = {
         'engine.role.admin',
         ),
 }
+
+CACHES = {
+   'default' : {
+       'BACKEND' : 'diskcache.DjangoCache',
+       'LOCATION' : CACHE_ROOT,
+       'TIMEOUT' : None,
+       'OPTIONS' : {
+            #'statistics' :True,
+            'size_limit' : 2 ** 40, # 1 тб
+       }
+   }
+}
+
+USE_CACHE = True

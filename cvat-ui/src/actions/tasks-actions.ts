@@ -344,10 +344,12 @@ function createTask(): AnyAction {
     return action;
 }
 
-function createTaskSuccess(): AnyAction {
+function createTaskSuccess(taskId: number): AnyAction {
     const action = {
         type: TasksActionTypes.CREATE_TASK_SUCCESS,
-        payload: {},
+        payload: {
+            taskId,
+        },
     };
 
     return action;
@@ -384,6 +386,7 @@ ThunkAction<Promise<void>, {}, {}, AnyAction> {
             z_order: data.advanced.zOrder,
             image_quality: 70,
             use_zip_chunks: data.advanced.useZipChunks,
+            use_cache: data.advanced.useCache,
         };
 
         if (data.advanced.bugTracker) {
@@ -433,10 +436,10 @@ ThunkAction<Promise<void>, {}, {}, AnyAction> {
 
         dispatch(createTask());
         try {
-            await taskInstance.save((status: string): void => {
+            const savedTask = await taskInstance.save((status: string): void => {
                 dispatch(createTaskUpdateStatus(status));
             });
-            dispatch(createTaskSuccess());
+            dispatch(createTaskSuccess(savedTask.id));
         } catch (error) {
             dispatch(createTaskFailed(error));
         }

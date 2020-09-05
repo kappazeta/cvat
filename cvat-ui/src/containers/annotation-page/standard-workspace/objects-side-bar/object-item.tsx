@@ -15,7 +15,6 @@ import {
 } from 'reducers/interfaces';
 import {
     collapseObjectItems,
-    changeLabelColorAsync,
     updateAnnotationsAsync,
     changeFrameAsync,
     removeObjectAsync,
@@ -31,6 +30,7 @@ import { shift } from 'utils/math';
 
 interface OwnProps {
     clientID: number;
+    initialCollapsed: boolean;
 }
 
 interface StateToProps {
@@ -43,7 +43,6 @@ interface StateToProps {
     activated: boolean;
     colorBy: ColorBy;
     ready: boolean;
-    colors: string[];
     activeControl: ActiveControl;
     minZLayer: number;
     maxZLayer: number;
@@ -58,7 +57,6 @@ interface DispatchToProps {
     removeObject: (sessionInstance: any, objectState: any) => void;
     copyShape: (objectState: any) => void;
     propagateObject: (objectState: any) => void;
-    changeLabelColor(label: any, color: string): void;
     changeGroupColor(group: number, color: string): void;
 }
 
@@ -88,7 +86,6 @@ function mapStateToProps(state: CombinedState, own: OwnProps): StateToProps {
                 ready,
                 activeControl,
             },
-            colors,
         },
         settings: {
             shapes: {
@@ -105,7 +102,7 @@ function mapStateToProps(state: CombinedState, own: OwnProps): StateToProps {
         .indexOf(own.clientID);
 
     const collapsedState = typeof (statesCollapsed[own.clientID]) === 'undefined'
-        ? true : statesCollapsed[own.clientID];
+        ? own.initialCollapsed : statesCollapsed[own.clientID];
 
     return {
         objectState: states[index],
@@ -115,7 +112,6 @@ function mapStateToProps(state: CombinedState, own: OwnProps): StateToProps {
         ready,
         activeControl,
         colorBy,
-        colors,
         jobInstance,
         frameNumber,
         activated: activatedStateID === own.clientID,
@@ -148,12 +144,6 @@ function mapDispatchToProps(dispatch: any): DispatchToProps {
         },
         propagateObject(objectState: any): void {
             dispatch(propagateObjectAction(objectState));
-        },
-        changeLabelColor(
-            label: any,
-            color: string,
-        ): void {
-            dispatch(changeLabelColorAsync(label, color));
         },
         changeGroupColor(group: number, color: string): void {
             dispatch(changeGroupColorAsync(group, color));
@@ -273,7 +263,6 @@ class ObjectItemContainer extends React.PureComponent<Props> {
         const {
             objectState,
             colorBy,
-            changeLabelColor,
             changeGroupColor,
         } = this.props;
 
@@ -282,8 +271,6 @@ class ObjectItemContainer extends React.PureComponent<Props> {
             this.commit();
         } else if (colorBy === ColorBy.GROUP) {
             changeGroupColor(objectState.group.id, color);
-        } else if (colorBy === ColorBy.LABEL) {
-            changeLabelColor(objectState.label, color);
         }
     };
 
@@ -375,7 +362,6 @@ class ObjectItemContainer extends React.PureComponent<Props> {
             attributes,
             activated,
             colorBy,
-            colors,
             normalizedKeyMap,
         } = this.props;
 
@@ -399,10 +385,10 @@ class ObjectItemContainer extends React.PureComponent<Props> {
                 attrValues={{ ...objectState.attributes }}
                 labelID={objectState.label.id}
                 color={stateColor}
-                colors={colors}
                 attributes={attributes}
                 normalizedKeyMap={normalizedKeyMap}
                 labels={labels}
+                colorBy={colorBy}
                 collapsed={collapsed}
                 activate={this.activate}
                 remove={this.remove}

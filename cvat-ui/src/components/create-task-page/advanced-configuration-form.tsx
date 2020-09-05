@@ -26,6 +26,7 @@ export interface AdvancedConfiguration {
     repository?: string;
     useZipChunks: boolean;
     dataChunkSize?: number;
+    useCache: boolean;
 }
 
 type Props = FormComponentProps & {
@@ -93,7 +94,7 @@ class AdvancedConfigurationForm extends React.PureComponent<Props> {
                     delete filteredValues.frameStep;
 
                     if (values.overlapSize && +values.segmentSize <= +values.overlapSize) {
-                        reject(new Error('Overlap size must be more than segment size'));
+                        reject(new Error('Segment size must be more than overlap size'));
                     }
 
                     if (typeof (values.startFrame) !== 'undefined' && typeof (values.stopFrame) !== 'undefined'
@@ -380,6 +381,24 @@ class AdvancedConfigurationForm extends React.PureComponent<Props> {
         );
     }
 
+    private renderCreateTaskMethod(): JSX.Element {
+        const { form } = this.props;
+        return (
+            <Form.Item help='Using cache to store data.'>
+                {form.getFieldDecorator('useCache', {
+                    initialValue: false,
+                    valuePropName: 'checked',
+                })(
+                    <Checkbox>
+                        <Text className='cvat-text-color'>
+                            Use cache
+                        </Text>
+                    </Checkbox>,
+                )}
+            </Form.Item>
+        );
+    }
+
     private renderChunkSize(): JSX.Element {
         const { form } = this.props;
 
@@ -431,6 +450,12 @@ class AdvancedConfigurationForm extends React.PureComponent<Props> {
                 <Row>
                     <Col>
                         {this.renderUzeZipChunks()}
+                    </Col>
+                </Row>
+
+                <Row>
+                    <Col>
+                        {this.renderCreateTaskMethod()}
                     </Col>
                 </Row>
 

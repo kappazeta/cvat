@@ -15,7 +15,6 @@ import {
     copyShape as copyShapeAction,
     propagateObject as propagateObjectAction,
     changeGroupColorAsync,
-    changeLabelColorAsync,
 } from 'actions/annotation-actions';
 import { Canvas } from 'cvat-canvas-wrapper';
 import {
@@ -31,7 +30,8 @@ interface StateToProps {
     listHeight: number;
     statesHidden: boolean;
     statesLocked: boolean;
-    statesCollapsed: boolean;
+    statesCollapsedAll: boolean;
+    collapsedStates: Record<number, boolean>;
     objectStates: any[];
     annotationsFilters: string[];
     colors: string[];
@@ -53,7 +53,6 @@ interface DispatchToProps {
     propagateObject: (objectState: any) => void;
     changeFrame(frame: number): void;
     changeGroupColor(group: number, color: string): void;
-    changeLabelColor(label: any, color: string): void;
 }
 
 function mapStateToProps(state: CombinedState): StateToProps {
@@ -64,6 +63,7 @@ function mapStateToProps(state: CombinedState): StateToProps {
                 filters: annotationsFilters,
                 filtersHistory: annotationsFiltersHistory,
                 collapsed,
+                collapsedAll,
                 activatedStateID,
                 zLayer: {
                     min: minZLayer,
@@ -97,25 +97,23 @@ function mapStateToProps(state: CombinedState): StateToProps {
 
     let statesHidden = true;
     let statesLocked = true;
-    let statesCollapsed = true;
 
     objectStates.forEach((objectState: any) => {
-        const { clientID, lock } = objectState;
+        const { lock } = objectState;
         if (!lock) {
             if (objectState.objectType !== ObjectType.TAG) {
                 statesHidden = statesHidden && objectState.hidden;
             }
             statesLocked = statesLocked && objectState.lock;
         }
-        const stateCollapsed = clientID in collapsed ? collapsed[clientID] : true;
-        statesCollapsed = statesCollapsed && stateCollapsed;
     });
 
     return {
         listHeight,
         statesHidden,
         statesLocked,
-        statesCollapsed,
+        statesCollapsedAll: collapsedAll,
+        collapsedStates: collapsed,
         objectStates,
         frameNumber,
         jobInstance,
@@ -154,9 +152,6 @@ function mapDispatchToProps(dispatch: any): DispatchToProps {
         },
         changeGroupColor(group: number, color: string): void {
             dispatch(changeGroupColorAsync(group, color));
-        },
-        changeLabelColor(label: any, color: string): void {
-            dispatch(changeLabelColorAsync(label, color));
         },
     };
 }
@@ -278,7 +273,6 @@ class ObjectsListContainer extends React.PureComponent<Props, State> {
             jobInstance,
             updateAnnotations,
             changeGroupColor,
-            changeLabelColor,
             removeObject,
             copyShape,
             propagateObject,
@@ -399,15 +393,11 @@ class ObjectsListContainer extends React.PureComponent<Props, State> {
                         return;
                     }
 
-                    if (colorBy === ColorBy.LABEL) {
-                        const colorID = (colors.indexOf(state.label.color) + 1) % colors.length;
-                        changeLabelColor(state.label, colors[colorID]);
-                        return;
+                    if (colorBy === ColorBy.INSTANCE) {
+                        const colorID = (colors.indexOf(state.color) + 1) % colors.length;
+                        state.color = colors[colorID];
+                        updateAnnotations([state]);
                     }
-
-                    const colorID = (colors.indexOf(state.color) + 1) % colors.length;
-                    state.color = colors[colorID];
-                    updateAnnotations([state]);
                 }
             },
             TO_BACKGROUND: (event: KeyboardEvent | undefined) => {
