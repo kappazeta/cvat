@@ -18,12 +18,17 @@ services:
       POSTGRES_USER: root
       POSTGRES_DB: cvat
       POSTGRES_HOST_AUTH_METHOD: trust
+      CVAT_PG_CLUSTER: ${CVAT_PG_CLUSTER}
     volumes:
-      - cvat_db:/var/lib/postgresql/data
+      - ${CVAT_PG_CLUSTER}:/var/lib/postgresql/data
 
   cvat_redis:
     container_name: cvat_redis
     image: redis:4.0-alpine
+    environment:
+      CVAT_REDIS_DATA: ${CVAT_REDIS_DATA}
+    volumes:
+      - ${CVAT_REDIS_DATA}:/data
     networks:
       default:
         aliases:
@@ -53,11 +58,15 @@ services:
       ALLOWED_HOSTS: '*'
       CVAT_REDIS_HOST: "cvat_redis"
       CVAT_POSTGRES_HOST: "cvat_db"
+      CVAT_DATA: ${CVAT_DATA}
+      CVAT_KEYS: ${CVAT_KEYS}
+      CVAT_LOGS: ${CVAT_LOGS}
+      CVAT_MODELS: ${CVAT_MODELS}
     volumes:
-      - cvat_data:/home/django/data
-      - cvat_keys:/home/django/keys
-      - cvat_logs:/home/django/logs
-      - cvat_models:/home/django/models
+      - ${CVAT_DATA}:/home/django/data
+      - ${CVAT_KEYS}:/home/django/keys
+      - ${CVAT_LOGS}:/home/django/logs
+      - ${CVAT_MODELS}:/home/django/models
 
   cvat_ui:
     container_name: cvat_ui
@@ -87,7 +96,7 @@ services:
       - cvat
       - cvat_ui
     environment:
-      CVAT_HOST: localhost
+      CVAT_HOST: ${CVAT_HOST}
     ports:
       - "8080:80"
     volumes:
@@ -120,10 +129,3 @@ networks:
       config:
         - subnet: 172.28.0.0/24
           gateway: 172.28.0.1
-
-volumes:
-  cvat_db:
-  cvat_data:
-  cvat_keys:
-  cvat_logs:
-  cvat_models:
