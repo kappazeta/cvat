@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2019 Intel Corporation
+# Copyright (C) 2018-2020 Intel Corporation
 #
 # SPDX-License-Identifier: MIT
 
@@ -50,10 +50,22 @@ def generate_ssh_keys():
     ssh_dir = '{}/.ssh'.format(os.getenv('HOME'))
     pidfile = os.path.join(ssh_dir, 'ssh.pid')
 
+    def add_ssh_keys():
+        IGNORE_FILES = ('README.md', 'ssh.pid')
+        keys_to_add = [entry.name for entry in os.scandir(ssh_dir) if entry.name not in IGNORE_FILES]
+        keys_to_add = ' '.join(os.path.join(ssh_dir, f) for f in keys_to_add)
+        subprocess.run(['ssh-add {}'.format(keys_to_add)],
+            shell = True,
+            stderr = subprocess.PIPE,
+            # lets set the timeout if ssh-add requires a input passphrase for key
+            # otherwise the process will be freezed
+            timeout=30,
+            )
+
     with open(pidfile, "w") as pid:
         fcntl.flock(pid, fcntl.LOCK_EX)
         try:
-            subprocess.run(['ssh-add {}/*'.format(ssh_dir)], shell = True, stderr = subprocess.PIPE)
+            add_ssh_keys()
             keys = subprocess.run(['ssh-add -l'], shell = True,
                 stdout = subprocess.PIPE).stdout.decode('utf-8').split('\n')
             if 'has no identities' in keys[0]:
@@ -93,7 +105,7 @@ INSTALLED_APPS = [
     'cvat.apps.documentation',
     'cvat.apps.dataset_manager',
     'cvat.apps.engine',
-    'cvat.apps.git',
+    'cvat.apps.dataset_repo',
     'cvat.apps.restrictions',
     'cvat.apps.lambda_manager',
     'django_rq',
@@ -341,7 +353,7 @@ MODELS_ROOT = os.path.join(DATA_ROOT, 'models')
 os.makedirs(MODELS_ROOT, exist_ok=True)
 
 LOGS_ROOT = os.path.join(BASE_DIR, 'logs')
-os.makedirs(MODELS_ROOT, exist_ok=True)
+os.makedirs(LOGS_ROOT, exist_ok=True)
 
 MIGRATIONS_LOGS_ROOT = os.path.join(LOGS_ROOT, 'migrations')
 os.makedirs(MIGRATIONS_LOGS_ROOT, exist_ok=True)
@@ -409,9 +421,6 @@ DATA_UPLOAD_MAX_NUMBER_FIELDS = None   # this django check disabled
 LOCAL_LOAD_MAX_FILES_COUNT = 500
 LOCAL_LOAD_MAX_FILES_SIZE = 512 * 1024 * 1024  # 512 MB
 
-DATUMARO_PATH = os.path.join(BASE_DIR, 'datumaro')
-sys.path.append(DATUMARO_PATH)
-
 RESTRICTIONS = {
     'user_agreements': [],
 
@@ -430,16 +439,17 @@ RESTRICTIONS = {
         ),
 }
 
+# http://www.grantjenks.com/docs/diskcache/tutorial.html#djangocache
 CACHES = {
    'default' : {
        'BACKEND' : 'diskcache.DjangoCache',
        'LOCATION' : CACHE_ROOT,
        'TIMEOUT' : None,
        'OPTIONS' : {
-            #'statistics' :True,
-            'size_limit' : 2 ** 40, # 1 тб
+            'size_limit' : 2 ** 40, # 1 Tb
        }
    }
 }
 
 USE_CACHE = True
+
